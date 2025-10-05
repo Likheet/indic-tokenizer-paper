@@ -1,0 +1,15 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+The CSV exports that accompany this manuscript are released under the
+Creative Commons Attribution 4.0 International license.
+
+You are free to share (copy and redistribute) and adapt (remix, transform,
+and build upon) the data for any purpose, even commercially, provided that
+you give appropriate credit, provide a link to the license, and indicate if
+changes were made.
+
+Full license text: https://creativecommons.org/licenses/by/4.0/
+
+When citing or redistributing the CSVs, include attribution to
+"TokenizerLab Benchmark (Likheet Shetty, 2025)" alongside a link to the
+original repository or release.

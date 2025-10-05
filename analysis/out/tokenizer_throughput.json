@@ -1,0 +1,32 @@
+[
+  {
+    "language": "Hindi",
+    "tokenizer_id": "openai/tiktoken/o200k_base",
+    "tokens_per_sec": 413799.17436894006
+  },
+  {
+    "language": "Hindi",
+    "tokenizer_id": "openai/tiktoken/cl100k_base",
+    "tokens_per_sec": 739554.9614654451
+  },
+  {
+    "language": "Hindi",
+    "tokenizer_id": "ai4bharat/IndicBERTv2-MLM-only",
+    "tokens_per_sec": 154515.47989367475
+  },
+  {
+    "language": "Hinglish",
+    "tokenizer_id": "openai/tiktoken/o200k_base",
+    "tokens_per_sec": 467174.45849124563
+  },
+  {
+    "language": "Hinglish",
+    "tokenizer_id": "openai/tiktoken/cl100k_base",
+    "tokens_per_sec": 642806.7833688969
+  },
+  {
+    "language": "Hinglish",
+    "tokenizer_id": "ai4bharat/IndicBERTv2-MLM-only",
+    "tokens_per_sec": 149687.22141398137
+  }
+]

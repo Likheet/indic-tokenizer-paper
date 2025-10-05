@@ -1,0 +1,29 @@
+[
+  {
+    "tokenizer_id": "openai/tiktoken/o200k_base",
+    "Hindi_lsar": 1.0,
+    "Hindi_csbc": 1.0,
+    "Hindi_spr": 2.4358744394618834,
+    "Hinglish_lsar": 1.0,
+    "Hinglish_csbc": 1.0,
+    "Hinglish_spr": 2.053892215568862
+  },
+  {
+    "tokenizer_id": "openai/tiktoken/cl100k_base",
+    "Hindi_lsar": 0.5244865718799369,
+    "Hindi_csbc": 1.0,
+    "Hindi_spr": 1.0243741765480896,
+    "Hinglish_lsar": 1.0,
+    "Hinglish_csbc": 1.0,
+    "Hinglish_spr": 1.0
+  },
+  {
+    "tokenizer_id": "ai4bharat/IndicBERTv2-MLM-only",
+    "Hindi_lsar": 0.0,
+    "Hindi_csbc": 0.0,
+    "Hindi_spr": 3.3489519112207153,
+    "Hinglish_lsar": 0.0,
+    "Hinglish_csbc": 0.0,
+    "Hinglish_spr": 3.205607476635514
+  }
+]

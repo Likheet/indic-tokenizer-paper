@@ -1,0 +1,16 @@
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{textcomp}
+\newcommand{\devtxt}[1]{#1}
+\begin{document}
+\begin{table}[t]
+\centering
+\begin{tabular}{l l c l}
+\toprule
+Tokenizer & Token example & Count & Note \\
+\midrule
+o200k_base & \textvisiblespace{}\devtxt{क्ष} & 200 & space+Devanagari \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{document}

@@ -1,0 +1,382 @@
+﻿% NeurIPS 2025-compliant main.tex (MD-aligned content)
+% This version aligns wording/emphasis with the provided main.md while
+% keeping NeurIPS formatting and robust compilation under XeLaTeX/LuaLaTeX.
+
+\documentclass{article}
+\PassOptionsToPackage{numbers,sort&compress}{natbib}
+\usepackage[preprint]{neurips_2025}
+
+% Encoding, fonts, links
+\usepackage{iftex}
+
+\ifPDFTeX%
+    \usepackage[utf8]{inputenc}
+    \usepackage[T1]{fontenc}
+    \PackageError{main}{This document must be compiled with XeLaTeX or LuaLaTeX to render Indic characters}{Use xelatex main.tex}
+\else
+    \usepackage{fontspec}
+    \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+    \setmainfont{Times New Roman}
+    \setsansfont{Arial}
+    \setmonofont{Consolas}
+    \newfontfamily\devanagarifont[Script=Devanagari,ItalicFont=Nirmala UI]{Nirmala UI}
+    \newcommand{\devtxt}[1]{{\devanagarifont#1}}
+    \newcommand{\devcode}[1]{\texttt{{\devanagarifont#1}}}
+\fi
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\urlstyle{same}
+
+% Math, tables, graphics, spacing
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{microtype}
+\usepackage{array}
+\usepackage{textcomp}
+\renewcommand{\textvisiblespace}{\texttt{\textless{}space\textgreater{}}}
+\usepackage[font=small,labelfont=bf,labelsep=period]{caption}
+% Prefer ragged-right captions to avoid tight full-justification that often
+% produces underfull/overfull warnings in narrow floats. Keep single-line
+% captions left-aligned as well.
+\captionsetup{justification=raggedright,singlelinecheck=false}
+\usepackage{titlesec}
+
+\makeatletter
+\renewcommand{\@noticestring}{}
+\makeatother
+
+% Improve line-breaking tolerance to reduce underfull/overfull boxes in tight layouts
+% This is a coarse but safe global setting; can be removed if you prefer stricter layout.
+\emergencystretch=2em
+
+\captionsetup[table]{skip=6pt}
+\captionsetup[figure]{skip=6pt}
+ % Removed custom title formats to rely on default section styling
+
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+% Slightly reduce inter-column padding to give tables more horizontal room
+% and reduce the chance of overfull hboxes in tight tables.
+\setlength{\tabcolsep}{3pt}
+\setlength{\bibsep}{0pt plus 0.3pt}
+\setlength{\bibhang}{1.0em}
+
+% Unicode guards for a few common glyphs (pdfLaTeX only)
+\ifPDFTeX%
+    \DeclareUnicodeCharacter{0394}{\ensuremath{\Delta}} % Δ
+    \DeclareUnicodeCharacter{2248}{\ensuremath{\approx}} % ≈
+    \DeclareUnicodeCharacter{2011}{-} % non-breaking hyphen
+    \DeclareUnicodeCharacter{2212}{-} % minus sign
+\fi
+
+% Figures live in ./figures
+\graphicspath{{figures/}}
+
+% Macros
+\newcommand{\unk}{\texttt{[UNK]}}
+\newcommand{\HLd}{HL\ensuremath{\Delta}}
+
+\title{Tokenizer Benchmarking Across Indic and Code-Mixed Scripts}
+\author{Likheet Shetty \\ Upcoming MS in IT (AI), UNSW \\\texttt{likheet.s@gmail.com}}
+\date{}
+
+\begin{document}
+% Allow LaTeX to relax spacing to avoid overfull/underfull boxes in tight lines.
+% Use sparingly: this is a repo-friendly fix that avoids layout churn.
+\sloppy
+\maketitle
+
+% ===================== ABSTRACT =====================
+
+\begin{abstract}
+\textbf{Tokenization} critically determines cost, context budgets, and prompt robustness in LLM deployments, yet production tokenizers remain uncompared across \textbf{Indic scripts} and \textbf{code-mixed} text. We benchmark \textbf{11 widely-used tokenizers} (OpenAI, Meta, Mistral, plus Indic-trained models) on \textbf{English, Hindi, Kannada, Tamil,} and script-mixed \textbf{Hinglish} using \textit{browser-based measurement}.
+
+	extbf{Key findings:} OpenAI's \textit{o200k\_base} requires \textbf{\textasciitilde55\textendash{}70\% fewer tokens} than \textit{cl100k\_base} on Indic text (HI \textbf{54.7\%}, KN \textbf{69.7\%}, TA \textbf{60.6\%}), \textbf{\textasciitilde29.3\% fewer} on script-mixed Hinglish, and \textbf{\textasciitilde4.1\% fewer} on English (all significant under \textbf{paired Wilcoxon} tests with \textbf{BH correction} across slices). We observe \textbf{zero \texttt{[UNK]}} for byte-fallback tokenizers on baselines and \textbf{stable behavior} under noisy inputs (URLs, emoji, normalization variants). \textbf{Indic-trained WordPiece} models achieve the highest compactness on pure Indic text but \textbf{fragment under ASCII mixing}. We provide \textbf{routing logic} and \textbf{monitoring counters} for production deployment, focusing on within-line script mixing (Devanagari+Latin). Romanized-only Hindi is distinct and deferred to future work.
+
+\textbf{All results} derive from released \textbf{CSVs}; the \textit{browser artifact} enables replication without GPUs or servers.
+\end{abstract}
+
+% ===================== INTRO =====================
+
+
+\section{Introduction}
+
+Tokenization represents the first irreversible decision in an LLM pipeline. Once text is segmented, all downstream steps---including attention budget allocation, truncation risk, and final cost---are determined. Inefficient tokenization inflates token counts, increasing costs while reducing text capacity within fixed context windows. Conversely, brittle tokenization (high \textbf{UNK} rates or erratic fragmentation) compromises system robustness when processing real-world inputs containing romanized words, code-mixed text, emoji, hashtags, URLs, or mixed Unicode normalization. These effects occur upstream of model weights, necessitating model-agnostic evaluation of tokenization strategies.
+
+South Asian deployments frequently encounter mixed-script utterances---single lines containing both Devanagari and Latin segments alongside links or emoji. In fixed context windows, tokenizers that over-fragment non-Latin text or emit UNK tokens for Indic grapheme clusters impose immediate computational and financial costs. While prior work on subword tokenization (WordPiece, BPE, SentencePiece) has primarily focused on English or monolingual settings, production teams lack systematic comparisons of widely deployed tokenizers on Indic and code-mixed inputs. This gap is particularly acute in browser-only environments where privacy or governance constraints prohibit server calls. This paper addresses this limitation through a reproducible benchmark and a concise decision framework.
+
+Our central research question examines how vocabulary allocation and fallback strategies in production tokenizers shape the efficiency-robustness trade-off for Hinglish (script-mixed Hindi-English) and related Indic workloads. We conceptualize byte-fallback and Indic-focused WordPiece tokenizers as competing design points, quantify their paired cost differences, and analyze the merge patterns responsible for observed performance variations.
+
+\noindent\textbf{Research questions.}
+\begin{description}
+    \item[RQ1] How do byte-fallback and WordPiece allocations trade off efficiency and robustness on Indic and code-mixed baselines?
+    \item[RQ2] How does ASCII mixing shift token budgets across the evaluated tokenizers?
+    \item[RQ3] Which merge patterns (e.g., {\textvisiblespace}+akshara tokens) correlate with reduced fragmentation?
+\end{description}
+
+\noindent\textbf{Hypotheses.}
+\begin{description}
+    \item[H1] Byte-fallback tokenizers guarantee coverage and stabilize token budgets under noisy or mixed-script inputs.
+    \item[H2] Indic WordPiece vocabularies achieve optimal compactness on pure Indic text but degrade as ASCII ratio increases.
+    \item[H3] Higher leading-space akshara and cross-script bigram coverage correlate with lower code-mixed fragmentation.
+\end{description}
+
+The paper proceeds as follows: \textbf{Related Work}, \textbf{Methods}, \textbf{Results}, \textbf{Analysis}, \textbf{Discussion}, \textbf{Limitations}, and \textbf{Conclusion}, with extended material available in Appendices~A\textendash{}D and the project README.\@
+
+% ===================== METHODS =====================
+
+\section{Related Work}
+
+\subsection{Tokenization algorithms}
+Byte Pair Encoding (BPE) greedily merges frequent symbol pairs to learn a fixed merge table from a training corpus, yielding compact segmentations\cite{Sennrich2016BPE}. Byte-level BPE, as deployed in GPT-2, operates directly on UTF-8 bytes to guarantee coverage\cite{Radford2019GPT2}. WordPiece performs probabilistic maximum-likelihood merges optimized for language-model likelihood, favoring granularity on morphologically rich scripts\cite{Schuster2012WordPiece}. SentencePiece trains directly on raw text using a unigram language model \emph{(optionally with byte-fallback)}, enabling normalization-aware segmentation across arbitrary Unicode ranges\cite{Kudo2018SentencePiece}.
+
+\subsection{Multilingual and Indic tokenization}
+IndicBERT fine-tunes WordPiece vocabularies over 12 Indic languages and reports downstream performance on NER, POS tagging, and classification benchmarks rather than intrinsic segmentation metrics\cite{Kakwani2020IndicBERT}. MuRIL expands the corpus to 17 Indian languages (plus English) and evaluates translation and task transfer, again omitting tokenizer efficiency diagnostics\cite{Khanuja2021MuRIL}. XLM-R scales SentencePiece vocabularies to 100 languages and analyzes cross-lingual transfer accuracy, but does not characterize mixed-script fragmentation\cite{Conneau2020XLMR}.
+
+\begin{table}[t]
+    \centering
+    \small
+    \caption{Prior studies on multilingual and Indic tokenization.}\label{tab:prior-studies}
+    \begingroup
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{1.15}
+    % Use tabularx so the last column can flex and avoid overfull hboxes.
+    \begin{tabularx}{\linewidth}{p{2.4cm}p{2.8cm}p{2.2cm}p{2.4cm}X}
+    	oprule
+    	extbf{Study} & \textbf{Tokenizers} & \textbf{Languages} & \textbf{Metrics} & \textbf{Scope} \\
+    \midrule
+        Kakwani et al. (2020) & WordPiece (IndicBERT) & 12 Indic langs & Downstream accuracy & Monolingual tasks \\
+        Khanuja et al. (2021) & WordPiece (MuRIL) & 17 Indic + EN & Transfer + task accuracy & Mono + cross-lingual \\
+        Conneau et al. (2020) & SentencePiece (XLM-R) & 100 languages & Cross-lingual accuracy & Multilingual benchmarks \\
+        	extbf{This work} & 11 production tokenizers & EN/HI/KN/TA + HI\textendash{}EN mix & Tokens/100, \texttt{[UNK]}, cost & Code-mixed + stressors \\
+    \bottomrule
+    \end{tabularx}
+    \endgroup
+\end{table}
+
+\subsection{Production tokenization studies}
+Open-source release notes for \texttt{tiktoken} describe how larger merge tables improve inference throughput and memory bandwidth on GPT-family models\cite{tiktoken}, while subsequent tokenizer updates document the introduction of \texttt{o200k\_base} for long-context deployments\cite{OpenAI2024Tokenizer}. The LLaMA report discusses BPE-based tokenization in the context of training efficiency\cite{Touvron2023LLaMA}. Unlike these sources, which target training efficiency or downstream accuracy, our study isolates segmentation behavior on mixed-script inputs to derive operational guidance independent of model choice.
+
+\section{Methods}
+
+\subsection{Measurement pipeline}
+Our benchmark employs a CSV-first approach: all results derive from previously exported CSVs, with no tokenization jobs rerun for this revision. Measurements use a \textbf{browser-only harness} that loads tokenizers via \textbf{Transformers.js} or \textbf{tiktoken} (WebAssembly). Each run logs per-row metrics: tokens/100 characters, bytes/token, UNK incidence, fragmentation entropy, and timing metadata. CSV exports—one per tokenizer per slice—are versioned and checksummed. Every row stores tokenizer ID, artifact hash, library versions, commit SHA, OS, and timestamp, enabling entirely offline downstream analysis.
+
+\subsection{Baseline corpus and sampling}
+Each language slice begins with a curated candidate pool stored under \path{tokenizer-input/<language>.txt}. These pools combine PII-scrubbed customer-support snippets, short news headlines, and product help articles. We normalize to \textbf{NFC}, preserve \textbf{ZWJ}, deduplicate with deterministic packing, and draw \textbf{100 unique baselines per language} without replacement using Python's \texttt{random} module (fixed seed for reproducibility). We publish the exact \texttt{template\_id} lists under \texttt{baselines/} to enable verifiable replaying of sampled sets. Slice-specific filters enforce script coverage:
+\begin{itemize}
+    \item \textbf{EN/HI/KN/TA:} target script covers $\geq 90\%$ of Unicode code points.
+    \item \textbf{Hinglish (script-mixed Hindi\textendash{}English):} each line contains $\geq 3$ Devanagari and $\geq 3$ Latin code points.
+    \item \textbf{All slices:} trim whitespace, enforce NFC, forbid ZWJ stripping.
+\end{itemize}
+Baseline length bands (code points; median; 10th\textendash{}90th percentile) are: EN \textbf{45.0} (37.0/53.0), HI \textbf{47.5} (37.0/60.1), Hinglish \textbf{34.0} (25.9/43.2), KN \textbf{46.5} (36.9/59.0), TA \textbf{49.0} (38.0/67.0). Appendix~A lists per-template metadata and ASCII ratios.
+
+\noindent\textbf{Definitions.} ASCII ratio (bytes) = ASCII byte count / total byte count on NFC text; HL$\Delta$ denotes the Hodges\textendash{}Lehmann median paired difference computed on per-template token-count differences between \texttt{cl100k\_base} and \texttt{o200k\_base}.
+
+\subsection{Tokenizer inventory}
+We evaluate 11 production tokenizers spanning BPE-family and Indic-aware WordPiece/SentencePiece models:
+\begin{sloppypar}
+\begin{itemize}
+    \item \textbf{BPE-family:} \path{openai/tiktoken/o200k\_base}, \path{openai/tiktoken/cl100k\_base}, \path{meta-llama/Meta-Llama-3.1-8B-Instruct}, \path{mistralai/Mistral-7B-Instruct-v0.3}, \path{Xenova/distilgpt2}.
+    \item \textbf{Indic-focused WordPiece/SentencePiece:} \path{ai4bharat/IndicBERTv2-MLM-only}, \path{InvincibleSloth/muril-tokenizer}, \path{Xenova/xlm-roberta-base}, \path{Xenova/bert-base-multilingual-uncased}, \path{Xenova/bert-base-uncased}, \path{Xenova/t5-small}.
+\end{itemize}
+\end{sloppypar}
+Tokenizers must (i) load deterministically in the browser, (ii) have operational relevance, and (iii) expose licensing permitting redistribution or runtime fetching. Frontier-only or hosted tokenizers (GPT-4o, Claude, Gemini) and models requiring native extensions are excluded; Appendix~B summarizes the practical implications of these exclusions.
+
+\subsection{Preset configuration}
+All exports use the \textbf{Full} preset: \texttt{sampleLines=100}, \texttt{repeats=5} (each template tokenized five times to probe non-determinism; all repeats were identical in this release), baseline condition (NFC, ZWJ stressor off—no injection or removal—, no emoji/URL, \texttt{add\_special\_tokens=false}), plus sweeps for ASCII ratio (11 bins), emoji \textbf{(0/1/2/3/4/5)}, URL toggles, normalization flips (NFC/NFD), zero-width joiner toggles, and light perturbations. Each tokenizer\textendash{}slice pair yields \textbf{2,230} rows (\textbf{24,530} per slice). Baseline rows are filtered by \texttt{sweep\_axis == ``baseline''}; stressor rows are analyzed via deltas relative to the baseline median.
+
+For all analyses, five repeats per \texttt{template\_id} were collapsed by the median, yielding 100 independent baselines per slice.
+
+
+% ===================== RESULTS =====================
+
+\section{Results}
+Figure~\ref{fig:baseline-tokens} summarizes baseline medians for three deployment candidates (\texttt{o200k\_base}, \texttt{cl100k\_base}, and \texttt{IndicBERTv2}). Detailed per-tokenizer tables, cost micro-tables, and stressor snapshots are presented in Appendix~A.\@
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/baseline_tokens_bar.png}
+\caption{Baseline median tokens/100 for \texttt{o200k\_base}, \texttt{cl100k\_base}, and \texttt{IndicBERTv2} across EN/HI/KN/TA/Hinglish. \texttt{o200k\_base} achieves \textasciitilde55\textendash{}70\% reductions on Indic scripts while maintaining near parity on English. Error bars represent the IQR.\@ Medians are computed on baseline rows only.}\label{fig:baseline-tokens}
+\end{figure}
+
+\subsection{Baseline medians}
+	exttt{o200k\_base} demonstrates superior compactness compared to \texttt{cl100k\_base} on Hindi, Kannada, Tamil, and Hinglish (script-mixed Hindi\textendash{}English), while maintaining near parity on English. For English, 74/100 paired baselines show exact ties and 26/100 favor \texttt{o200k\_base}; the Hodges\textendash{}Lehmann estimator (HL$\Delta$) equals 0.0 tokens/100 with $p = 4.135\times10^{-6}$ (Wilcoxon, one-sided, paired; BH correction yields $q = 4.135\times10^{-6}$ for EN and all $q < 1\times10^{-8}$ for HI/KN/TA/Hinglish). Although Indic-aware tokenizers (IndicBERTv2, MuRIL) produce the fewest tokens on pure Indic baselines, median tokens/100 and bytes/token for all 11 tokenizers per slice are tabulated in Appendix~A (Tables A1\textendash{}A5), alongside cost per 1M characters computed as $0.1 \times$ (median tokens per 100 chars) at $\$0.01 / 1\text{k}$ tokens.
+
+\begin{table}[t]
+\centering
+\caption{Cost per 1M characters (USD) at $\$0.01$ per 1k tokens.}
+\begin{tabular}{lccccc}
+\toprule
+Tokenizer & EN & HI & KN & TA & Hinglish \\
+\midrule
+\texttt{cl100k\_base} & 3.51 & 12.43 & 19.53 & 16.67 & 6.00 \\
+\texttt{o200k\_base} & 3.36 & 5.63 & 5.93 & 6.57 & 4.24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Effect sizes across languages}
+Table~\ref{tab:language-summary} presents median paired differences (\texttt{cl100k} $-$ \texttt{o200k}) with 95\% bootstrap intervals, Cliff's $\delta$, and Wilcoxon p-values (BH-corrected across slices). Reductions exceed 66 tokens/100 on Hindi and 133 tokens/100 on Kannada, with Hinglish showing a +16.67 tokens/100 shift, consistent with the \textasciitilde29\% reduction reported in the abstract.
+\begin{table}[t]
+    \centering
+    \caption{Per-language efficiency summary for \texttt{o200k\_base} relative to \texttt{cl100k\_base}. Median $\Delta$ is reported in tokens/100 characters; Cliff's $\delta$ measures paired effect size.}\label{tab:language-summary}
+    \input{tables/table_language_summary.tex}
+\end{table}
+
+% ===================== ANALYSIS =====================
+\section{Analysis}
+
+\subsection{Vocabulary allocation metrics}
+Figure~\ref{fig:merge-metrics} compares qualitative leading-space behavior across Hindi and Hinglish samples. Qualitatively, \texttt{o200k\_base} emits frequent space-prefixed Devanagari merges (e.g., {\textvisiblespace}\devtxt{क्ष}, {\textvisiblespace}\devtxt{कर}), bundling whitespace with aksharas; \texttt{cl100k\_base} predominantly yields single-codepoint or byte-split pieces; \texttt{IndicBERTv2} does not emit space-prefixed merges. We omit numeric LSAR/SPR/CSBC values because our debug sampling under-reports absolute coverage.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/merge_metrics_bar.png}
+    \caption{Vocabulary allocation snapshots across tokenizers. Each bar reflects qualitative counts drawn from debug sampling; we highlight frequent space-prefixed merges but omit numeric LSAR/SPR/CSBC rates due to sampling under-coverage.}\label{fig:merge-metrics}
+\end{figure}
+
+\subsection{ASCII sensitivity and routing threshold}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.75\linewidth]{figures/hinglish_lsar_curve.png}
+    \caption{Baseline LSAR medians for Hindi and Hinglish across the three deployment tokenizers. Byte-fallback encoders retain some leading-space merges, while IndicBERTv2 maintains the highest coverage on script-mixed text.}\label{fig:hinglish-lsar}
+\end{figure}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/ascii_sensitivity.png}
+    \caption{Median tokens/100 differences (\texttt{cl100k} minus \texttt{o200k}) versus ASCII ratio. Deltas decrease as ASCII increases and remain $>0$ across all bins for all slices; no single break-even point is observed.}\label{fig:ascii-sensitivity}
+\end{figure}
+The trends in Figure~\ref{fig:ascii-sensitivity} show a monotonic decrease in paired deltas while remaining strictly positive; we therefore treat ASCII ratio as a monotonic cost signal rather than a hard routing breakpoint.
+
+\subsection{Sample convergence}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/convergence_curves.png}
+    \caption{Convergence of median (\texttt{cl100k} $-$ \texttt{o200k}) as the number of paired baselines $k$ increases. Medians stabilize as $k$ grows, supporting the $n=100$ design.}\label{fig:convergence}
+\end{figure}
+
+Median deltas stabilize well before the 100-template budget.
+
+\subsection{Merge exemplars}
+Table~\ref{tab:merge-examples} lists frequent leading-space merges observed across Hindi and Hinglish baselines. \texttt{o200k\_base} emits high-frequency tokens such as {\textvisiblespace}\devtxt{क्ष} and {\textvisiblespace}\devtxt{करो}, which collapse whitespace and aksharas; \texttt{cl100k\_base} primarily yields single letters with prefixed spaces.
+\begin{table}[t]
+    \centering
+    \caption{Frequent space-prefixed merges observed across Hindi/Hinglish baselines. {\textvisiblespace} denotes a leading space.}\label{tab:merge-examples}
+    \input{tables/table_merge_examples.tex}
+\end{table}
+
+% ===================== DISCUSSION =====================
+
+\section{Discussion}
+
+\subsection{Why \texttt{o200k\_base} dominates}
+Two design choices explain its consistent advantage:
+\begin{enumerate}
+    \item \textbf{Merge coverage.} \texttt{o200k\_base} doubles the merge vocabulary (200k) relative to \texttt{cl100k\_base}, capturing multi-byte Indic clusters, emoji, and URL substrings that otherwise fall back to byte-level splits.
+    \item \textbf{Byte fallback.} Guaranteed coverage yields zero \texttt{[UNK]} even when inputs are noisy or code-mixed. While Indic-trained WordPiece models achieve optimal compactness on pure Indic text and remain competitive under moderate code-mixing, byte-fallback tokenizers guarantee coverage and show low variance under noisy inputs (emoji/URLs/normalization).
+\end{enumerate}
+
+\subsection{Operational takeaways}
+A simple policy captures the observed gains:
+\begin{itemize}
+    \item \textbf{Default:} use \texttt{o200k\_base} universally.
+    \item \textbf{Optional router:} route single-script Indic lines with ASCII ratio $<0.25$ to \texttt{ai4bharat/IndicBERTv2-MLM-only}; auto-fallback to \texttt{o200k\_base} if \texttt{[UNK]} appears.
+    \item \textbf{Unicode hygiene:} normalize to NFC, preserve ZWJ, keep emoji/URLs untouched.
+    \item \textbf{Monitoring:} track median tokens/100, \texttt{[UNK]} incidence, and fragmentation dispersion per slice to detect drift.
+\end{itemize}
+
+\subsection{Future considerations}
+Results are conditional on the five slices studied. Additional Indic scripts (Bengali, Telugu, Malayalam, etc.), Romanized Hindi, or long-document workloads may shift magnitude but are unlikely to overturn the relative strengths of byte-fallback versus script-aware tokenizers. Library updates or merge-table revisions warrant re-exporting CSVs with the pinned pipeline.
+
+% ===================== LIMITATIONS =====================
+
+\section{Limitations}
+
+Our study has several limitations (detailed in Appendix~B):
+
+\begin{itemize}
+    \item \textbf{Scope:} We focus primarily on intrinsic metrics (tokens/100, bytes/token, \texttt{[UNK]}, fragmentation). We do not report absolute throughput; any such measurements would be CPU-only proxies rather than comprehensive performance benchmarks, and we do not evaluate downstream perplexity or task accuracy.
+    
+    \item \textbf{Coverage:} Our evaluation encompasses five language slices (EN, HI, KN, TA, Hinglish). Analysis of additional Indic scripts and Romanized Hindi would require new data collection.
+    
+    \item \textbf{Input length:} Baselines consist of short-to-medium length text lines; tokenization behavior may differ for longer documents.
+    
+    \item \textbf{Library/version dependence:} Results are contingent on specific library versions (\texttt{transformersjs=2.17.2}, \texttt{tiktoken=1.0.22}, app 0.1.0, commit \texttt{b625b2ea}, OS \texttt{Win32}).
+    
+    \item \textbf{Tokenizer equivalence:} The observed equivalence between \texttt{cl100k\_base} and \texttt{Meta{-}Llama-3.1{-}8B{-}Instruct} holds for all English, Kannada, and Tamil baselines (100/100), though this equivalence breaks under several stressor conditions.
+\end{itemize}
+
+
+% ===================== CONCLUSION =====================
+
+\section{Conclusion}
+TokenizerLab's CSV-first benchmark demonstrates that \texttt{o200k\_base} is the optimal single-tokenizer choice for Indic and code-mixed deployments: it remains \texttt{[UNK]}-free, reduces costs by approximately half compared to \texttt{cl100k\_base} on Indic scripts, and maintains performance parity with English. For further cost optimization, a lightweight router can optionally direct pure Indic lines to IndicBERTv2. By adopting NFC normalization, ZWJ preservation, and monitoring three key counters (tokens/100, \texttt{[UNK]} incidence, and dispersion), teams can deploy robust tokenization pipelines without re-running the benchmark. Appendices A\textendash{}D provide the complete reproducibility protocol, deployment guide, and extended risk register, while operational checklists are available in the supplementary README.\@
+
+% ===================== APPENDICES =====================
+
+\appendix
+
+\section{Supplemental Materials (Appendix A)}
+\begin{itemize}
+    \item Tables A1\textendash{}A5: Baseline medians, IQRs, cost summaries, and \texttt{[UNK]} incidence for all tokenizers per language slice.
+    \item Tables A6\textendash{}A8: ASCII, emoji, URL, normalization, and perturbation deltas for \{\texttt{o200k\_base}, \texttt{cl100k\_base}, \texttt{IndicBERTv2}\}.
+    \item Figures A1\textendash{}A3: Fragmentation entropy distributions and dispersion visualizations.
+    \item Figure A4: Stressor deltas for Hinglish (script-mixed Hindi\textendash{}English).
+\end{itemize}
+
+\section{Validity, Ethics, and Risk Assessment (Appendix B)}
+\begin{itemize}
+    \item Comprehensive analysis of internal, external, construct, and conclusion validity.
+    \item Guidelines for Unicode hygiene, normalization, and ZWJ handling.
+    \item Data curation methodology, fairness considerations, environmental impact assessment, and privacy protocols.
+    \item Negative findings and potential falsifiers that could challenge current conclusions.
+\end{itemize}
+
+\section{Implementation Guide (Appendix C)}
+Practical deployment guidance consolidated from earlier sections:
+\begin{enumerate}
+    \item \textbf{Policy framework:} Default configurations, routing thresholds, Unicode hygiene protocols, and \texttt{[UNK]} failsafe mechanisms.
+    \item \textbf{Monitoring protocol:} Metrics for tokens/100, \texttt{[UNK]}\%, and dispersion; recommended alert thresholds.
+    \item \textbf{Deployment sequence:} shadow $\to$ canary $\to$ ramp $\to$ baseline freeze.
+    \item \textbf{Incident response:} Normalization audit procedures, version verification, golden-set rerun protocols, and fallback rules.
+    \item \textbf{Privacy safeguards:} Metric-only logging approach, salted hash implementation for audit requirements.
+\end{enumerate}
+
+\section{Reproducibility Protocol (Appendix D)}
+All tables, figures, and statistical analyses are regenerable from the released CSVs through the following procedure:
+\begin{enumerate}
+    \item \textbf{Input datasets:} \texttt{english-fast.csv}, \texttt{hindi-fast.csv}, \texttt{hinglish-fast.csv}, \texttt{kannada-fast.csv}, \texttt{tamil-fast.csv}.
+    \item \textbf{Baseline filtering:} \texttt{sweep\_axis == ``baseline''}, NFC normalization, ZWJ stressor disabled, \texttt{emoji\_count=0}, \texttt{url\_applied=0}, \texttt{add\_special\_tokens=false}; use the published \texttt{baselines/<lang>\_baseline\_template\_ids.txt} manifests (with a fixed sampling seed for reproducibility).
+    \item \textbf{Tokenizer-specific summaries:} Compute medians and IQRs for \texttt{tokens\_per\_100\_chars}, \texttt{bytes\_per\_token}, and \texttt{[UNK]\%}; calculate ``Rows with UNK \%'' as the incidence of \texttt{unk\_count > 0}.
+    \item \textbf{Cost analysis:} Transform medians using $0.1 \times$ tokens/100 (at $\$0.01/1k$ tokens); optionally bootstrap the median (e.g., $B=5{,}000$) for 95\% confidence intervals.
+    \item \textbf{Paired statistical analysis:} Join baseline rows for \texttt{cl100k\_base} and \texttt{o200k\_base} by \texttt{template\_id}; compute differences; apply a one-sided Wilcoxon test ($H_1$: \texttt{cl100k > o200k}); report $W$, $n$, $z$, $p$, effect size $r$, and Hodges\textendash{}Lehmann $\Delta$. Apply Benjamini\textendash{}Hochberg across HI/KN/TA/Hinglish. In our data: for EN, $p \approx 4.40\times10^{-6}$; for HI/KN/TA/Hinglish, $p < 2.2\times10^{-16}$ (machine-precision floor under the normal approximation). Corresponding $q$-values remain significant (EN $q \approx 4.40\times10^{-6}$; others $< 1\times10^{-8}$).
+    \item \textbf{Stressor analysis:} Summarize deltas relative to baseline for ASCII, emoji, URL, normalization, ZWJ, and perturbations as required.
+\end{enumerate}
+
+Additional reference materials:
+\begin{itemize}
+    \item Precise formulas for all metrics, cost transformations, Wilcoxon tests, and BH correction.
+    \item CSV schema documentation, baseline filtering criteria, and stressor definitions.
+    \item Baseline template ID manifests in \texttt{baselines/<lang>\_baseline\_template\_ids.txt} for exact replication of sampled sets.
+    \item Alias screening methodology ($\geq 99\%$ identical baseline rows) with perturbation stress tests.
+    \item Abugida metric and visualization scripts defining LSAR, SPR, CSBC, ASCII sensitivity summaries, and convergence curves.
+    \item Replication modes: CSV-only (expedited) and full browser rerun (comprehensive).
+    \item Analysis scripts and diagnostics, including Devanagari merge counts and the reproducibility notebook.
+    \item Data licensing statement (expanded from main text), archive structure, and citation template.
+    \item Reviewer/practitioner FAQ (condensed) and administrative documentation.
+\end{itemize}
+
+TokenizerLab (browser application), the five language slice CSVs, schema documentation, and checksums are released under permissive licenses; see this appendix for file structure, licensing information, and citation guidelines. All assets are fixed at archive tag (v1.0.0).
+
+All supplementary materials referenced in the main text are hosted alongside the artifact tag.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+
+\end{document}

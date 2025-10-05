@@ -1,0 +1,35 @@
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.xdv
+
+# PDF output
+*.pdf
+
+# Python caches
+__pycache__/
+*.pyc
+
+# VSCode
+/.vscode/
+
+# Data and large outputs (if you prefer them out of repo; tracked by LFS if present in .gitattributes)
+tokenizer-output/
+tokenizer-input/
+
+# Temporary files
+*.swp
+*~
+.#*
+
+# System files
+Thumbs.db
+.DS_Store
+
+# If you use Git LFS, keep .gitattributes at repo root. If you want tokenizer data in repo,
+# remove the tokenizer-* lines above and rely on .gitattributes to track via LFS instead.
