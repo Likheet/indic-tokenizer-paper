@@ -1,0 +1,10 @@
+{
+  "title": "Tokenizer Benchmarking Across Indic and Code‑Mixed Scripts",
+  "upload_type": "publication",
+  "description": "CSV artifacts, analysis scripts, and paper source for Tokenizer Benchmarking Across Indic and Code‑Mixed Scripts (Likheet Shetty, 2025).",
+  "creators": [
+    { "name": "Shetty, Likheet", "affiliation": "Upcoming MS in IT (AI), UNSW" }
+  ],
+  "keywords": ["tokenization","indic","hinglish","dataset","nlp","reproducibility"],
+  "license": "CC-BY-4.0"
+}

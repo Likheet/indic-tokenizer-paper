@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+title: "Tokenizer Benchmarking Across Indic and Code‑Mixed Scripts"
+version: 1.0.0
+doi: 10.5281/zenodo.YOURID
+authors:
+  - family-names: Shetty
+    given-names: Likheet
+    affiliation: "Upcoming MS in IT (AI), UNSW"
+    orcid: ""
+date-released: 2025-10-06
+url: https://github.com/Likheet/indic-tokenizer-paper
+license: CC-BY-4.0
+abstract: |
+  Tokenization critically determines cost, context budgets, and prompt robustness in LLM deployments. This repository contains the paper, figures, CSV artifacts, and analysis scripts for evaluating tokenizers on English, Hindi, Kannada, Tamil, and Hinglish.

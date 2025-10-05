@@ -18,9 +18,10 @@ __pycache__/
 # VSCode
 /.vscode/
 
-# Data and large outputs (if you prefer them out of repo; tracked by LFS if present in .gitattributes)
-tokenizer-output/
-tokenizer-input/
+# Data and large outputs (use Git LFS to track these via .gitattributes)
+# If you intentionally want to keep data out of the repo, add the following lines back:
+# tokenizer-output/
+# tokenizer-input/
 
 # Temporary files
 *.swp
