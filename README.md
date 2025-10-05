@@ -16,9 +16,13 @@ Contents
 - `checksums/sha256sum.csv` — checksums for large artifacts
 
 Cite
-If you use this artifact, please cite the Zenodo release (placeholder until DOI minted):
+For a version-agnostic citation (always resolves to the latest release), cite the Zenodo concept DOI:
 
-Likheet Shetty (2025). Tokenizer Benchmarking Across Indic and Code‑Mixed Scripts. Zenodo. DOI: 10.5281/zenodo.YOURID
+Likheet Shetty (2025). Tokenizer Benchmarking Across Indic and Code‑Mixed Scripts. Zenodo. DOI: 10.5281/zenodo.17273988
+
+Versioned DOIs
+- v1.0.0 — 10.5281/zenodo.17273989
+- v1.0.1 — 10.5281/zenodo.17274005
 
 License
 - Paper/text: CC‑BY 4.0 (recommended)
