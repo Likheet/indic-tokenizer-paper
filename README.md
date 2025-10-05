@@ -44,3 +44,6 @@ Release and DOI
 
 Contact
 - Likheet Shetty — likheet.s@gmail.com
+
+Tokenizer app
+- The browser-based TokenizerLab application that produced the measured tokenizers is available at: https://github.com/Likheet/tokenizer-lab

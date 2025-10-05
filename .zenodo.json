@@ -7,4 +7,7 @@
   ],
   "keywords": ["tokenization","indic","hinglish","dataset","nlp","reproducibility"],
   "license": "CC-BY-4.0"
+  ,"related_identifiers": [
+    {"relation": "isSupplementTo", "identifier": "https://github.com/Likheet/tokenizer-lab"}
+  ]
 }
